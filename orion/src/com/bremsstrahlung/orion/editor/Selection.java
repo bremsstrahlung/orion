@@ -11,14 +11,14 @@ public class Selection {
 	private float posX, posY;
 	
 	public Selection() {
-		posX = 0;
-		posY = 0;
-		
+		posX = 0f;
+		posY = 0f;
+				
 		float[] coords = {
-				 0.0f, -0.5f,
-				-0.5f,  0.0f,
-				 0.0f,  0.5f,				 
-				 0.5f,  0.0f,
+				0.5f, 0.0f,
+				0.0f, 0.5f,
+				0.5f, 1.0f,
+				1.0f, 0.5f,
 		};
 		
 		FloatBuffer verts = BufferUtils.createFloatBuffer(coords.length);
@@ -31,9 +31,11 @@ public class Selection {
 		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER,  0);
 	}
 	
-	public void setPosition(int x, int y) {
+	public void setPosition(float x, float y) {
 		posX = x;
 		posY = y;
+		
+		System.out.println("[" + posX + "," + posY + "]");
 	}
 	
 	public void render() {
@@ -43,11 +45,8 @@ public class Selection {
 		
 		GL11.glPushMatrix();
 		GL11.glLoadIdentity();
-		GL11.glTranslatef(posX, -posY, 0.0f);
-		
-//		if(posY % 2 == 0)
-//			GL11.glTranslatef(-0.5f, 0.0f, 0.0f);
-		
+		GL11.glTranslatef(posX, posY, 0.0f);
+
 		GL11.glColor3f(0.0f, 0.0f, 0.0f);
 		GL11.glDrawArrays(GL11.GL_LINE_LOOP, 0, 4);
 		

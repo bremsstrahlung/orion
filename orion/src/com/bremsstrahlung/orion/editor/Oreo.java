@@ -31,7 +31,6 @@ public class Oreo implements Runnable {
 	private NewDialog newDialog = null;
 	private TilePropertiesPanel properties = null;
 	private Text textArea = null;
-	private Selection selection = null;
  
 	public static void main(String[] args) {
 		Oreo o = new Oreo();
@@ -144,15 +143,6 @@ public class Oreo implements Runnable {
 		
 		editor = new MapViewer(form);
 		//editor.setTileSet(loadTileSet("resources/tiles/tiles01.png"));
-		selection = new Selection();
-		
-		editor.addListener(SWT.MouseMove, new Listener() {
-			public void handleEvent(Event event) {
-				System.out.println("x=" + event.x + ",y=" + event.y);
-				
-				selection.setPosition(event.x, event.y);
-			}
-		});
 		
 		properties = new TilePropertiesPanel(form);
 		
@@ -211,7 +201,6 @@ public class Oreo implements Runnable {
 			}
 			
 			editor.render();
-			selection.render();
 			
 			canvas.swapBuffers();
 			display.asyncExec(this);

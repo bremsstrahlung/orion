@@ -30,6 +30,7 @@ public class MapViewer extends Composite {
 	private Rectangle bounds;
 	private Matrix4f projection = new Matrix4f();
 	private Matrix4f modelview = new Matrix4f();
+	private Selection selection;
 	
 	public MapViewer(Composite parent) {
 		super(parent, SWT.NONE);
@@ -40,45 +41,44 @@ public class MapViewer extends Composite {
 		data.doubleBuffer = true;
 		
 		canvas = new GLCanvas(this, SWT.NONE, data);
-		canvas.setCurrent();
-		
-		try {
-			GLContext.useContext(canvas);
-		}
-		catch(LWJGLException e) {
-			e.printStackTrace();
-		}
 		
 		canvas.addListener(SWT.Resize, new Listener() {
 			public void handleEvent(Event event) {
-				ortho(-5f, 5f, 10f, -10f, -1f, 1f);				
+				ortho(0f, 10f, 20f, 0f, -1f, 1f);				
 			}				
 		});
 		
 		canvas.addListener(SWT.MouseMove, new Listener() {
 			public void handleEvent(Event event) {
+				if(tileBatch == null || selection == null)
+					return;
+				
 				Vector2f pos = screenToWorld(new Point(event.x, event.y));
+
+				event.x = (int)Math.floor(pos.x);
+				event.y = (int)Math.floor(pos.y);
 				
-				event.x = Math.round(pos.x);
-				event.y = Math.round(pos.y);
-				
-				MapViewer.this.notifyListeners(SWT.MouseMove, event);
+				if(pos.x <= tileBatch.getBounds().x + 1 && pos.y <= tileBatch.getBounds().y + 1) {
+					if(event.y % 2 == 1)
+						selection.setPosition((float)Math.floor(event.x) + 0.5f, (float)Math.floor(event.y));
+					else
+						selection.setPosition((float)Math.floor(event.x), (float)Math.floor(event.y));
+				}
 			}
-		});
-		
-		GL11.glClearColor(0.4f, 0.6f, 0.9f, 0.0f);
+		});		
 	}
 	
 	private Vector2f screenToWorld(Point screen) {
 		Vector2f world = new Vector2f();
 		
-		float[] invertedMatrix, transformMatrix, normalizedIn, worldOut;
+		screen.y = bounds.height - screen.y;
+//		screen.x = bounds.width - screen.x;
 		
 		Vector4f normalized = new Vector4f(
-				(float)screen.x * 2f / bounds.width - 1f,
-				(float)screen.y * 2f / bounds.height - 1f,
-				-1f,
-				1f);
+				(float)screen.x * 2.0f / bounds.width  - 1.0f,
+				(float)screen.y * 2.0f / bounds.height - 1.0f,
+				0.0f,
+				1.0f);
 		
 		Matrix4f transform = new Matrix4f();
 		Matrix4f.mul(projection, modelview, transform);
@@ -88,6 +88,9 @@ public class MapViewer extends Composite {
 		
 		Vector4f out = new Vector4f();
 		Matrix4f.transform(inverse, normalized, out);
+		
+		out.x *= out.w;
+		out.y *= out.w;
 		
 		world.x = out.x;
 		world.y = out.y;
@@ -110,12 +113,13 @@ public class MapViewer extends Composite {
 		FloatBuffer modelView = BufferUtils.createFloatBuffer(16);
 		
 		Matrix4f projMatrix = new Matrix4f();
+		projMatrix.setIdentity();
 		projMatrix.m00 = 2 / (right - left);
 		projMatrix.m11 = 2 / (top - bottom);
 		projMatrix.m22 = -2 / (far - near);
-		projMatrix.m32 = (far + near) / (far -near);
-		projMatrix.m30 = (right + left) / (right - left);
-		projMatrix.m31 = (top + bottom) / (top - bottom);
+		projMatrix.m30 = -(right + left) / (right - left);
+		projMatrix.m31 = -(top + bottom) / (top - bottom);
+		projMatrix.m32 = -(far + near) / (far - near);
 		
 		projMatrix.store(projection);
 		projection.rewind();
@@ -136,6 +140,11 @@ public class MapViewer extends Composite {
 		
 		this.projection = projMatrix;
 		this.modelview = modelViewMatrix;
+
+		GL11.glMatrixMode(GL11.GL_MODELVIEW);
+		GL11.glClearColor(0.4f, 0.6f, 0.9f, 0.0f);
+		
+		selection = new Selection();
 	}
 	
 	private void setTileSet(int tileSetId, int width, int numTiles, int tileWidth) {
@@ -150,7 +159,7 @@ public class MapViewer extends Composite {
 		if(tileBatch != null)
 			tileBatch.delete();
 		
-		tileBatch = new TileBatch(tiles);
+		tileBatch = new TileBatch(tiles);		
 	}
 	
 	public void render() {
@@ -164,9 +173,11 @@ public class MapViewer extends Composite {
 		
 		GL11.glPushMatrix();
 		
-		GL11.glTranslatef(xOffset, yOffset, 0.0f);
+		//GL11.glTranslatef(xOffset, yOffset, 0.0f);
 		GL11.glColor3f(1.0f, 1.0f, 1.0f);
 		tileBatch.render();
+		
+		selection.render();
 		
 		GL11.glPopMatrix();
 	}

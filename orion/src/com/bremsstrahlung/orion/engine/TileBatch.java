@@ -70,17 +70,17 @@ public class TileBatch {
 	private float[] generateTileCoords(Point pos) {
 		float xOffset = 0.0f;
 		
-		if(pos.y % 2 == 0)
+		if(pos.y % 2 == 1)
 			xOffset = 0.5f;
 		
 		float[] coords = {
-				(pos.x * TILE_WIDTH) + xOffset, 		(pos.y * TILE_HEIGHT / 2f) - 0.5f,
-				(pos.x * TILE_WIDTH) + xOffset - 0.5f, 	(pos.y * TILE_HEIGHT / 2f),
-				(pos.x * TILE_WIDTH) + xOffset, 		(pos.y * TILE_HEIGHT / 2f) + 0.5f,
+				pos.x + 0.5f + xOffset,	pos.y,
+				pos.x +        xOffset,	pos.y + 0.5f,
+				pos.x + 0.5f + xOffset, pos.y + 1.0f,
 				
-				(pos.x * TILE_WIDTH) + xOffset, 		(pos.y * TILE_HEIGHT / 2f) + 0.5f,
-				(pos.x * TILE_WIDTH) + xOffset + 0.5f, 	(pos.y * TILE_HEIGHT / 2f),
-				(pos.x * TILE_WIDTH) + xOffset, 		(pos.y * TILE_HEIGHT / 2f) - 0.5f,				
+				pos.x + 0.5f + xOffset, pos.y + 1.0f,
+				pos.x + 1.0f + xOffset,	pos.y + 0.5f,
+				pos.x + 0.5f + xOffset,	pos.y,				
 		};
 		
 		return coords;

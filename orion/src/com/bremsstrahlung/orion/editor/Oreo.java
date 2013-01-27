@@ -1,5 +1,8 @@
 package com.bremsstrahlung.orion.editor;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 import org.eclipse.swt.SWT;
@@ -10,6 +13,7 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.opengl.GLCanvas;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
@@ -27,9 +31,9 @@ import com.bremsstrahlung.orion.model.Tile;
 
 public class Oreo implements Runnable {
 	private Display display = null;
-	private MapViewer editor = null;
+	private AreaEditor editor = null;
 	private NewDialog newDialog = null;
-	private TilePropertiesPanel properties = null;
+	private TileSelector tileSelector = null;
 	private Text textArea = null;
  
 	public static void main(String[] args) {
@@ -78,7 +82,7 @@ public class Oreo implements Runnable {
 	
 	private void init() {
 		display = new Display();
-		Shell shell = new Shell(display);
+		final Shell shell = new Shell(display);
 		GridLayout shellLayout = new GridLayout();
 		shellLayout.numColumns = 2;
 		shell.setLayout(shellLayout);
@@ -116,6 +120,10 @@ public class Oreo implements Runnable {
 		
 		ToolItem toolBarNewItem = new ToolItem(toolBar, SWT.PUSH);
 		toolBarNewItem.setText("New");
+		
+		ToolItem toolBarTileSetItem = new ToolItem(toolBar, SWT.PUSH);
+		toolBarTileSetItem.setText("Load tileset");
+		
 		toolBarNewItem.addListener(SWT.Selection, new Listener() {
 			public void handleEvent(Event event) {
 				Point areaSize = newDialog.open();
@@ -133,6 +141,23 @@ public class Oreo implements Runnable {
 			}
 		});
 		
+		toolBarTileSetItem.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				FileDialog fd = new FileDialog(shell, SWT.OPEN);
+				fd.setText("Open tileset");
+				
+				String selected = fd.open();
+				
+				try {
+					loadTileSet(selected);
+					tileSelector.loadTileSet(selected);
+				}
+				catch(IOException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		
 		toolBar.pack();
 		
 		/* Map and properties */
@@ -141,10 +166,19 @@ public class Oreo implements Runnable {
 		form.setLayoutData(formLayoutData);
 		
 		
-		editor = new MapViewer(form);
-		//editor.setTileSet(loadTileSet("resources/tiles/tiles01.png"));
+		editor = new AreaEditor(form);
+		editor.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				editor.setTile(new Point(event.x, event.y), editor.getBrush());
+			}
+		});
 		
-		properties = new TilePropertiesPanel(form);
+		tileSelector = new TileSelector(form, SWT.NONE);
+		tileSelector.addListener(SWT.Selection, new Listener() {
+			public void handleEvent(Event event) {
+				editor.setBrush(event.index);
+			}
+		});
 		
 		form.setWeights(new int[] {8, 2});
 		
@@ -169,17 +203,20 @@ public class Oreo implements Runnable {
 		display.dispose();		
 	}
 	
-	private void loadTileSet(String tiles) {
-		ImageData raw = new ImageData(getClass().getResourceAsStream("resources/tiles/tiles01.png"));
+	private void loadTileSet(String filename) throws IOException {
+		InputStream in = new FileInputStream(filename);
 		
-		ByteBuffer buffer = BufferUtils.createByteBuffer(raw.bytesPerLine * raw.height);
+		ImageData raw = new ImageData(in);
+		
+		ByteBuffer buffer = BufferUtils.createByteBuffer(raw.width * raw.height * raw.depth / 8);
 		buffer.put(raw.data);
+		buffer.rewind();
 		
 		GL11.glEnable(GL11.GL_TEXTURE_2D);
 		
 		int texId = GL11.glGenTextures();
 		GL11.glBindTexture(GL11.GL_TEXTURE_2D, texId);
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, 4, raw.width, raw.height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
+		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, raw.depth / 8, raw.width, raw.height, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, buffer);
 		
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);	
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
@@ -203,6 +240,7 @@ public class Oreo implements Runnable {
 			editor.render();
 			
 			canvas.swapBuffers();
+			org.lwjgl.opengl.Display.sync(60);
 			display.asyncExec(this);
 		}
 	}

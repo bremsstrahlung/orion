@@ -4,6 +4,10 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.GC;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.opengl.GLCanvas;
@@ -23,7 +27,7 @@ import com.bremsstrahlung.orion.engine.TileBatch;
 import com.bremsstrahlung.orion.model.Point;
 import com.bremsstrahlung.orion.model.Tile;
 
-public class MapViewer extends Composite {
+public class AreaEditor extends Composite {
 	private GLCanvas canvas;
 	private TileBatch tileBatch;
 	private int tileSetId;
@@ -31,8 +35,10 @@ public class MapViewer extends Composite {
 	private Matrix4f projection = new Matrix4f();
 	private Matrix4f modelview = new Matrix4f();
 	private Selection selection;
+	private ImageData mouseMap;
+	private int brush;
 	
-	public MapViewer(Composite parent) {
+	public AreaEditor(Composite parent) {
 		super(parent, SWT.NONE);
 		
 		setLayout(new FillLayout());
@@ -44,7 +50,9 @@ public class MapViewer extends Composite {
 		
 		canvas.addListener(SWT.Resize, new Listener() {
 			public void handleEvent(Event event) {
-				ortho(0f, 10f, 20f, 0f, -1f, 1f);				
+				bounds = getClientArea();
+				ortho(0, bounds.width, bounds.height, 0, -1, 1);
+				createMouseMap(bounds.width, bounds.height);
 			}				
 		});
 		
@@ -55,19 +63,48 @@ public class MapViewer extends Composite {
 				
 				Vector2f pos = screenToWorld(new Point(event.x, event.y));
 
-				event.x = (int)Math.floor(pos.x);
-				event.y = (int)Math.floor(pos.y);
-				
-				if(pos.x <= tileBatch.getBounds().x + 1 && pos.y <= tileBatch.getBounds().y + 1) {
-					if(event.y % 2 == 1)
-						selection.setPosition((float)Math.floor(event.x) + 0.5f, (float)Math.floor(event.y));
-					else
-						selection.setPosition((float)Math.floor(event.x), (float)Math.floor(event.y));
+				if(event.x >= 0 && event.x < mouseMap.width && event.y >= 0 && event.y < mouseMap.height) {
+					int px = mouseMap.getPixel((int)pos.x, (int)pos.y) >> 16;
+					
+					int x = px % 5;
+					int y = (px - x) / 5;
+					
+					if(x < 5 && y < 10)
+						selection.setPosition(x, y);
+					
+					event.x = x;
+					event.y = y;
+					
+					notifyListeners(SWT.MouseMove, event);
 				}
 			}
-		});		
+		});
+		
+		canvas.addListener(SWT.MouseDown, new Listener() {
+			public void handleEvent(Event event) {
+				if(tileBatch == null || selection == null)
+					return;
+				
+				Vector2f pos = screenToWorld(new Point(event.x, event.y));
+				
+				if(event.x >= 0 && event.x < mouseMap.width && event.y >= 0 && event.y < mouseMap.height) {
+					int px = mouseMap.getPixel((int)pos.x, (int)pos.y) >> 16;
+					
+					int x = px % 5;
+					int y = (px - x) / 5;
+					
+					if(x < 5 && y < 10)
+						selection.setPosition(x, y);
+					
+					event.x = x;
+					event.y = y;
+					
+					notifyListeners(SWT.Selection, event);
+				}
+			}
+		});
 	}
-	
+		
 	private Vector2f screenToWorld(Point screen) {
 		Vector2f world = new Vector2f();
 		
@@ -147,6 +184,52 @@ public class MapViewer extends Composite {
 		selection = new Selection();
 	}
 	
+	private void createMouseMap(int width, int height) {
+		Image map = new Image(getDisplay(), width, height);
+		
+		GC gc = new GC(map);
+		gc.setAntialias(SWT.OFF);
+		
+		for(int y = 0; y < 10; ++y) {
+			for(int x = 0; x < 5; ++x) {
+				int xOffset = 0;
+				
+				if(y % 2 == 1)
+					xOffset = TileBatch.TILE_WIDTH / 2;
+				
+				int[] coords = {
+						(x * TileBatch.TILE_WIDTH) + (TileBatch.TILE_WIDTH / 2) + xOffset, (y * TileBatch.TILE_HEIGHT) / 2,
+						(x * TileBatch.TILE_WIDTH)                    			+ xOffset, (y * TileBatch.TILE_HEIGHT) / 2 + (TileBatch.TILE_HEIGHT / 2),
+						(x * TileBatch.TILE_WIDTH) + (TileBatch.TILE_WIDTH / 2) + xOffset, (y * TileBatch.TILE_HEIGHT) / 2 + (TileBatch.TILE_HEIGHT),						
+						(x * TileBatch.TILE_WIDTH) + (TileBatch.TILE_WIDTH)     + xOffset, (y * TileBatch.TILE_HEIGHT) / 2 + (TileBatch.TILE_HEIGHT / 2),
+				};
+				
+				int rgb = (y * 5) + x;
+				Color c = new Color(gc.getDevice(), rgb, 0, 0);
+				gc.setBackground(c);
+				gc.fillPolygon(coords);
+				
+				c.dispose();
+			}
+		}
+		
+		mouseMap = map.getImageData();
+	}
+	
+	public void setTile(Point pos, int tileId) {
+		tileBatch.setTile(pos, tileId);
+	}
+	
+	public int getBrush() {
+		return brush;
+	}
+	
+	public void setBrush(int brush) {
+		this.brush = brush;
+		
+		selection.setBrush(brush);
+	}
+	
 	private void setTileSet(int tileSetId, int width, int numTiles, int tileWidth) {
 		this.tileSetId = tileSetId;
 	}
@@ -166,15 +249,10 @@ public class MapViewer extends Composite {
 		if(tileBatch == null)
 			return;
 		
-		float xOffset = -tileBatch.getBounds().x / 2f;
-		float yOffset = -tileBatch.getBounds().y / 2f;
-		
 		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
 		
 		GL11.glPushMatrix();
 		
-		//GL11.glTranslatef(xOffset, yOffset, 0.0f);
-		GL11.glColor3f(1.0f, 1.0f, 1.0f);
 		tileBatch.render();
 		
 		selection.render();

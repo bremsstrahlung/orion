@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<project name="orion" default="compile" basedir=".">
+    <property name="src" location="src" />
+    <property name="bin" location="bin" />
+    
+    <path id="lib.path.ref">
+        <fileset dir="lib" includes="*.jar" />
+    </path>
+
+    <target name="init">
+        <tstamp />
+        <mkdir dir="${bin}" />
+    </target>
+    
+    <target name="clean">
+        <delete dir="${bin}" />
+    </target>
+    
+    <target name="compile" depends="init">
+        <javac srcdir="${src}" destdir="${bin}">
+            <classpath refid="lib.path.ref" />
+        </javac>
+    </target>
+</project>
